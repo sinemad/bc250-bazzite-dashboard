@@ -1,0 +1,15 @@
+[Unit]
+Description=BC-250 Conky System Monitor
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Placeholder: the installed service will use the user's Conky configuration.
+ExecStartPre=/usr/bin/sleep 8
+ExecStart=/usr/bin/conky --config=%h/.config/conky/bc250.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
