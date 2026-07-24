@@ -35,6 +35,10 @@ The installer backs up an existing dashboard, installs the configuration and
 helper, detects the active network interface, and enables the systemd user
 service. Run it from Bazzite Desktop Mode without `sudo`.
 
+If required packages are missing, the installer adds them with `rpm-ostree`
+and asks you to reboot. After rebooting, run `./install.sh` again to finish the
+dashboard installation.
+
 ## Updating
 
 ```bash

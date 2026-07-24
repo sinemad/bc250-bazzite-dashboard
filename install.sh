@@ -15,7 +15,50 @@ die() {
     exit 1
 }
 
-command -v conky >/dev/null 2>&1 || die "Conky is not installed. On Bazzite, install it with: rpm-ostree install conky lm_sensors nvme-cli"
+install_missing_packages() {
+    local command package
+    local -a requirements=(
+        "conky:conky"
+        "sensors:lm_sensors"
+        "nmcli:NetworkManager"
+        "ip:iproute"
+        "findmnt:util-linux"
+        "lsblk:util-linux"
+        "lspci:pciutils"
+    )
+    local -a missing_packages=()
+
+    for requirement in "${requirements[@]}"; do
+        command="${requirement%%:*}"
+        package="${requirement#*:}"
+
+        if ! command -v "$command" >/dev/null 2>&1; then
+            if [[ ! " ${missing_packages[*]} " =~ [[:space:]]${package}[[:space:]] ]]; then
+                missing_packages+=("$package")
+            fi
+        fi
+    done
+
+    ((${#missing_packages[@]} == 0)) && return 0
+
+    command -v rpm-ostree >/dev/null 2>&1 || {
+        printf 'Missing required packages: %s\n' "${missing_packages[*]}" >&2
+        die "rpm-ostree was not found; install the missing packages manually."
+    }
+
+    printf 'The following required packages are missing: %s\n' "${missing_packages[*]}"
+    printf 'Installing them with rpm-ostree...\n'
+
+    rpm-ostree install "${missing_packages[@]}" ||
+        die "Package installation failed. No dashboard files were installed."
+
+    printf '\nRequired packages were added to the next Bazzite deployment.\n'
+    printf 'Reboot the computer, return to this directory, and run ./install.sh again.\n'
+    exit 0
+}
+
+install_missing_packages
+
 command -v systemctl >/dev/null 2>&1 || die "systemctl was not found."
 [[ -f "$CONKY_SOURCE/bc250.conf" ]] || die "Missing packaged file: conky/bc250.conf"
 [[ -f "$CONKY_SOURCE/scripts/bc250-stats.sh" ]] || die "Missing packaged file: conky/scripts/bc250-stats.sh"
