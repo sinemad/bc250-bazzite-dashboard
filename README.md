@@ -1,4 +1,6 @@
 # BC-250 Bazzite Dashboard
+[![Version](https://img.shields.io/github/v/release/sinemad/bc250-bazzite-dashboard?label=version)](https://github.com/sinemad/bc250-bazzite-dashboard/releases)
+[![License](https://img.shields.io/github/license/sinemad/bc250-bazzite-dashboard)](LICENSE)
 
 A lightweight Conky dashboard for BC-250 systems running Bazzite.
 
