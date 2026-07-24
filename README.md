@@ -31,7 +31,9 @@ cd bc250-bazzite-dashboard
 ./install.sh
 ```
 
-The installer is currently a starter stub and will be implemented in a future release.
+The installer backs up an existing dashboard, installs the configuration and
+helper, detects the active network interface, and enables the systemd user
+service. Run it from Bazzite Desktop Mode without `sudo`.
 
 ## Updating
 
