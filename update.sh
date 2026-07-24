@@ -9,11 +9,97 @@ SERVICE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 SERVICE_FILE="$SERVICE_DIR/conky.service"
 BACKUP_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/bc250-bazzite-dashboard/backups"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+ASSUME_YES=false
+INSTALL_ONLY=false
 
 die() {
     printf 'Error: %s\n' "$*" >&2
     exit 1
 }
+
+usage() {
+    printf 'Usage: %s [--yes]\n' "${0##*/}"
+    printf '  --yes  Install available Git updates without prompting.\n'
+}
+
+while (($# > 0)); do
+    case "$1" in
+        --yes|-y)
+            ASSUME_YES=true
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        --install-only)
+            # Internal option used after this script updates its own repository.
+            INSTALL_ONLY=true
+            ;;
+        *)
+            usage >&2
+            die "Unknown option: $1"
+            ;;
+    esac
+    shift
+done
+
+update_repository() {
+    local upstream local_commit remote_commit answer
+
+    command -v git >/dev/null 2>&1 ||
+        die "Git is required to check for repository updates."
+
+    git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+        die "This copy was not installed from a Git repository. Download or clone the latest release manually."
+
+    if [[ -n "$(git -C "$PROJECT_DIR" status --porcelain)" ]]; then
+        die "The repository has uncommitted changes. Commit or discard them before updating."
+    fi
+
+    upstream="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+    [[ -n "$upstream" ]] ||
+        die "The current branch has no upstream branch. Configure one before updating."
+
+    printf 'Checking %s for updates...\n' "$upstream"
+    git -C "$PROJECT_DIR" fetch --prune
+
+    local_commit="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+    remote_commit="$(git -C "$PROJECT_DIR" rev-parse '@{upstream}')"
+
+    if [[ "$local_commit" == "$remote_commit" ]]; then
+        printf 'The repository is already up to date.\n'
+        return 0
+    fi
+
+    if ! git -C "$PROJECT_DIR" merge-base --is-ancestor HEAD '@{upstream}'; then
+        die "The local and upstream branches have diverged. Resolve them manually with Git."
+    fi
+
+    printf '\nAvailable updates:\n'
+    git -C "$PROJECT_DIR" log --oneline --decorate HEAD..'@{upstream}'
+    printf '\nFiles changed:\n'
+    git -C "$PROJECT_DIR" diff --stat HEAD..'@{upstream}'
+
+    if [[ "$ASSUME_YES" != true ]]; then
+        [[ -t 0 ]] || die "Confirmation requires a terminal. Rerun with --yes to update non-interactively."
+        read -r -p "Download and install these updates? [y/N] " answer
+        [[ "$answer" =~ ^[Yy]$ ]] || {
+            printf 'Update cancelled.\n'
+            exit 0
+        }
+    fi
+
+    git -C "$PROJECT_DIR" merge --ff-only '@{upstream}'
+    printf 'Repository updated successfully.\n'
+
+    # Continue from the newly downloaded script instead of executing a file
+    # that may have changed underneath the current shell process.
+    exec "$PROJECT_DIR/update.sh" --install-only
+}
+
+if [[ "$INSTALL_ONLY" != true ]]; then
+    update_repository
+fi
 
 command -v conky >/dev/null 2>&1 || die "Conky is not installed."
 command -v systemctl >/dev/null 2>&1 || die "systemctl was not found."

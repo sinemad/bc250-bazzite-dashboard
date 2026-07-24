@@ -45,6 +45,12 @@ dashboard installation.
 ./update.sh
 ```
 
+The updater fetches the configured upstream Git branch, displays available
+commits and changed files, and asks for confirmation before fast-forwarding the
+local repository. It then backs up the installed files, deploys the update, and
+restarts Conky. Repositories with uncommitted or diverged changes are left
+untouched. For non-interactive use, run `./update.sh --yes`.
+
 ## Uninstalling
 
 ```bash
