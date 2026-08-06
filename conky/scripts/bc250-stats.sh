@@ -119,14 +119,14 @@ local_ip() {
 
 storage_mount() {
     findmnt --real --list --noheadings --output TARGET,SIZE,FSTYPE,OPTIONS --bytes 2>/dev/null |
-        awk '$1!="/" && $1!="/boot" && $1!="/boot/efi" && $3!~/^(overlay|squashfs|tmpfs|devtmpfs)$/ && $4~/(^|,)rw(,|$)/ {if($2>max){max=$2; mount=$1}} END{print mount}'
+        awk '$1!~/^\/(boot(\/efi)?|etc|sysroot(\/.*)?|var)$/ && $3!~/^(overlay|squashfs|tmpfs|devtmpfs)$/ && $4~/(^|,)rw(,|$)/ {if($2>max){max=$2; mount=$1}} END{print mount}'
 }
 
 selected_mount() { local m; m="$(storage_mount)"; [[ -n "$m" ]] && printf '%s\n' "$m" || printf '/home\n'; }
 storage_label() { local m; m="$(selected_mount)"; [[ "$m" =~ ^(/home|/var/home)$ ]] && printf 'Home Data\n' || basename "$m"; }
 storage_summary() { df -h --output=used,size "$(selected_mount)" 2>/dev/null | awk 'NR==2 {print $1 " / " $2}'; }
 storage_free() { df -h --output=avail "$(selected_mount)" 2>/dev/null | awk 'NR==2 {print $1}'; }
-storage_percent() { df -P --output=pcent "$(selected_mount)" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$1); print $1}'; }
+storage_percent() { df --output=pcent "$(selected_mount)" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$1); print $1}'; }
 storage_filesystem() { findmnt -n -o FSTYPE --target "$(selected_mount)" 2>/dev/null | head -n1; }
 
 case "${1:-}" in
