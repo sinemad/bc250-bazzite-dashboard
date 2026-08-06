@@ -129,11 +129,29 @@ storage_free() { df -h --output=avail "$(selected_mount)" 2>/dev/null | awk 'NR=
 storage_percent() { df --output=pcent "$(selected_mount)" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$1); print $1}'; }
 storage_filesystem() { findmnt -n -o FSTYPE --target "$(selected_mount)" 2>/dev/null | head -n1; }
 
+storage_top() {
+    local home
+    home="${HOME:-$(selected_mount)}"
+    {
+        for d in "$home"/.steam/steam/steamapps/common/*/; do
+            [[ -d "$d" ]] && du -sh "$d" 2>/dev/null
+        done
+        for d in "$home"/.var/app/*/; do
+            [[ -d "$d" ]] && du -sh "$d" 2>/dev/null
+        done
+        for d in "$home"/Downloads "$home"/Documents "$home"/Videos "$home"/Music "$home"/Pictures; do
+            [[ -d "$d" ]] && du -sh "$d" 2>/dev/null
+        done
+    } | sort -rh | head -3 | while read -r size path; do
+        printf '%s${alignr}%s\n' "$(basename "$path" | cut -c1-28)" "$size"
+    done
+}
+
 case "${1:-}" in
     cpu_temp) cpu_temp;; gpu_temp) gpu_temp;; nvme_temp) nvme_temp;;
     gpu_usage) gpu_usage;; gpu_usage_text) gpu_usage_text;; gpu_clock) gpu_clock;; gpu_name) gpu_name;;
     interface) primary_interface;; network_type) network_type;; ssid) ssid;; signal_bar) signal_bar;; ip) local_ip;;
     storage_mount) selected_mount;; storage_label) storage_label;; storage_summary) storage_summary;;
-    storage_free) storage_free;; storage_percent) storage_percent;; storage_filesystem) storage_filesystem;;
+    storage_free) storage_free;; storage_percent) storage_percent;; storage_filesystem) storage_filesystem;; storage_top) storage_top;;
     *) printf 'Unknown command: %s\n' "${1:-}" >&2; exit 1;;
 esac
