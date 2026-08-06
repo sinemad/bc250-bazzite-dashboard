@@ -14,12 +14,12 @@ find_amd_gpu_device() {
     return 1
 }
 
-to_fahrenheit() { awk -v c="$1" 'BEGIN {printf "%.0f°F\n", c*9/5+32}'; }
+format_temp() { awk -v c="$1" 'BEGIN {printf "%.0f°F / %.0f°C\n", c*9/5+32, c}'; }
 
 cpu_temp() {
     local c
     c="$(sensors 2>/dev/null | awk '/Tctl:|Tdie:|Package id 0:/ {v=$2; gsub(/[+°C]/,"",v); print v; exit}')"
-    [[ -n "$c" ]] && to_fahrenheit "$c" || printf 'N/A\n'
+    [[ -n "$c" ]] && format_temp "$c" || printf 'N/A\n'
 }
 
 gpu_temp() {
@@ -28,7 +28,7 @@ gpu_temp() {
     file="$(find "$device"/hwmon/hwmon* -maxdepth 1 -name temp1_input 2>/dev/null | head -n1)"
     [[ -r "$file" ]] || { printf 'N/A\n'; return; }
     value="$(<"$file")"
-    to_fahrenheit "$(awk -v v="$value" 'BEGIN {print v/1000}')"
+    format_temp "$(awk -v v="$value" 'BEGIN {print v/1000}')"
 }
 
 nvme_temp() {
@@ -44,11 +44,11 @@ nvme_temp() {
         done
         [[ -r "${input:-}" ]] || continue
         value="$(<"$input")"
-        to_fahrenheit "$(awk -v v="$value" 'BEGIN {print v/1000}')"
+        format_temp "$(awk -v v="$value" 'BEGIN {print v/1000}')"
         return
     done
     value="$(sensors 2>/dev/null | awk '/^nvme/{n=1} n && /^Composite:/ {v=$2; gsub(/[+°C]/,"",v); print v; exit}')"
-    [[ -n "$value" ]] && to_fahrenheit "$value" || printf 'N/A\n'
+    [[ -n "$value" ]] && format_temp "$value" || printf 'N/A\n'
 }
 
 gpu_usage() {
@@ -119,21 +119,39 @@ local_ip() {
 
 storage_mount() {
     findmnt --real --list --noheadings --output TARGET,SIZE,FSTYPE,OPTIONS --bytes 2>/dev/null |
-        awk '$1!="/" && $1!="/boot" && $1!="/boot/efi" && $3!~/^(overlay|squashfs|tmpfs|devtmpfs)$/ && $4~/(^|,)rw(,|$)/ {if($2>max){max=$2; mount=$1}} END{print mount}'
+        awk '$1!~/^\/(boot(\/efi)?|etc|sysroot(\/.*)?|var)$/ && $3!~/^(overlay|squashfs|tmpfs|devtmpfs)$/ && $4~/(^|,)rw(,|$)/ {if($2>max){max=$2; mount=$1}} END{print mount}'
 }
 
 selected_mount() { local m; m="$(storage_mount)"; [[ -n "$m" ]] && printf '%s\n' "$m" || printf '/home\n'; }
 storage_label() { local m; m="$(selected_mount)"; [[ "$m" =~ ^(/home|/var/home)$ ]] && printf 'Home Data\n' || basename "$m"; }
 storage_summary() { df -h --output=used,size "$(selected_mount)" 2>/dev/null | awk 'NR==2 {print $1 " / " $2}'; }
 storage_free() { df -h --output=avail "$(selected_mount)" 2>/dev/null | awk 'NR==2 {print $1}'; }
-storage_percent() { df -P --output=pcent "$(selected_mount)" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$1); print $1}'; }
+storage_percent() { df --output=pcent "$(selected_mount)" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$1); print $1}'; }
 storage_filesystem() { findmnt -n -o FSTYPE --target "$(selected_mount)" 2>/dev/null | head -n1; }
+
+storage_top() {
+    local home
+    home="${HOME:-$(selected_mount)}"
+    {
+        for d in "$home"/.steam/steam/steamapps/common/*/; do
+            [[ -d "$d" ]] && du -sh "$d" 2>/dev/null
+        done
+        for d in "$home"/.var/app/*/; do
+            [[ -d "$d" ]] && du -sh "$d" 2>/dev/null
+        done
+        for d in "$home"/Downloads "$home"/Documents "$home"/Videos "$home"/Music "$home"/Pictures; do
+            [[ -d "$d" ]] && du -sh "$d" 2>/dev/null
+        done
+    } | sort -rh | head -3 | while read -r size path; do
+        printf '%s${alignr}%s\n' "$(basename "$path" | cut -c1-28)" "$size"
+    done
+}
 
 case "${1:-}" in
     cpu_temp) cpu_temp;; gpu_temp) gpu_temp;; nvme_temp) nvme_temp;;
     gpu_usage) gpu_usage;; gpu_usage_text) gpu_usage_text;; gpu_clock) gpu_clock;; gpu_name) gpu_name;;
     interface) primary_interface;; network_type) network_type;; ssid) ssid;; signal_bar) signal_bar;; ip) local_ip;;
     storage_mount) selected_mount;; storage_label) storage_label;; storage_summary) storage_summary;;
-    storage_free) storage_free;; storage_percent) storage_percent;; storage_filesystem) storage_filesystem;;
+    storage_free) storage_free;; storage_percent) storage_percent;; storage_filesystem) storage_filesystem;; storage_top) storage_top;;
     *) printf 'Unknown command: %s\n' "${1:-}" >&2; exit 1;;
 esac
